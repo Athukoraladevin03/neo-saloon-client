@@ -24,6 +24,7 @@ model user {
   createdAt DateTime @default(now())
   lastLogin DateTime?
   privilages String[] @default([]) //["users:add" , "users:edit" , "users.read"]
+  profileImage String? @default("images/default-profile.png") //should be included in the token
   //gender, emailVerified, phoneVerified
   
 }

@@ -18,7 +18,32 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const pageNumberInstring = request.nextUrl.searchParams.get("pageNumber") || "1";
+    
+    const pageSizeInstring = request.nextUrl.searchParams.get("pageSize") || "10";
+
+    const pageNumber = parseInt(pageNumberInstring);
+    const pageSize = parseInt(pageSizeInstring);
+
+    const userCount = await prisma.user.count()
+
+    const totalPages = Math.ceil(userCount / pageSize)
+
+    if(pageNumber > totalPages){
+        return NextResponse.json(
+            {
+                message: "Page number exceeds total pages",
+                totalPages : totalPages
+            },
+            {
+                status: 404
+            }
+        );
+    }
+
     const users = await prisma.user.findMany({
+        skip: (pageNumber - 1) * pageSize,
+        take: pageSize,
         select: {
             id: true,
             email: true,
@@ -37,7 +62,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
         {
             message: "Users fetched successfully",
-            users: users
+            users: users,
+            pagination : {
+                pageNumber : pageNumber,
+                pageSize : pageSize,
+                totalPages : totalPages,
+                totalCount : userCount
+            }
         }
     );
 }
@@ -153,9 +184,115 @@ export async function PUT(request: NextRequest){
         );
     }
 
+    const body = await request.json();
+
     if (requestedUser.id !== id) {
-        //user is trying to update their own account, allow it
+      
+     //never allow users to update their own role or privilages
+
+    const user = await prisma.user.findUnique({
+        where: {
+            id: id || ""
+        }
+    })
+
+    if(user == null){
+        return NextResponse.json(
+            {
+                message: "User not found"
+            },
+            {
+                status: 404
+            }
+        );
+    }
+
+        await prisma.user.update({
+            where: {
+                id: id || ""
+            },
+            data: {
+                email: body.email || user.email,
+                firstname: body.firstname || user.firstname,
+                lastname: body.lastname || user.lastname,
+                phone: body.phone || user.phone,
+                profileImage : body.profileImage || user.profileImage // should be included in the token
+            }    
+        })
+
+        return NextResponse.json(
+         {
+              message : "User Updated Successfullly"
+         }
+
+        )
+    
     }else{
-        //user is trying to update someone else's account, check privilages
+        
+        const havePrivilage = await isPrivilaged(request, "users:edit")
+
+        if (!havePrivilage){
+            return  NextResponse.json(
+              {
+
+                message : "you do not have the privilage to edit this users"
+
+              },
+              {
+                status : 403
+              }
+
+            )
+
+        }
+        
+        const user = await prisma.user.findUnique({
+            where : {
+                id : id||"0000"
+            }
+
+        })
+
+        if (user == null){
+            return NextResponse.json(
+                {
+                    message : "User not found"
+                },
+                {
+                    status : 404
+                }
+            )
+        }
+
+        await prisma.user.update({
+            where : {
+                id : id||"000"
+            },
+            data : {
+                email : body.email || user.email,
+                firstname : body.firstname || user.firstname,
+                lastname : body.lastname  || user.lastname,
+                phone : body.phone || user.phone,
+                profileImage : body.profileImage || user.profileImage,
+                role : body.role || user.role,
+                status : body.status || user.status,
+                privilages : body.privilages || user.privilages
+        
+            }
+        })
+
+        return NextResponse.json(
+            {
+                message : "User updated succesfully"
+            }
+        )
+
+
+
+
+
+
+
+
     }
 }
