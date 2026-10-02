@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma";
+import { UserRegistrationRequestSchema } from "@/types/dto/UserRegistrationRequest";
+import { UserSelfUpdateRequestSchema } from "@/types/dto/UserSelfUpdateRequest";
+import { UserUpdatedByAdminRequestSchema } from "@/types/dto/UserUpdatedByAdminRequest";
 import { getUser, isPrivilaged } from "@/utils/authentication";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
+import z from "zod";
 
 export async function GET(request: NextRequest) {
 
@@ -77,62 +81,21 @@ export async function POST(request: NextRequest) {
 
     //email , firstname , lastname , password , phone(optional)
 
-    const body = await request.json();
+    const body = await request.json()
 
-    if (body.email == null) {
-        return NextResponse.json(
-            {
-                message: "Email is required"
-            },
-            {
-                status: 422
-            }
-        );
-    }
+    //validate the body using zod
 
-    if (body.firstname == null) {
+    try {
 
-        return NextResponse.json(
-            {
-                message: "Firstname is required"
-            },
-            {
-                status: 422
-            }
-        );
-    }
+        const parsedBody = UserRegistrationRequestSchema.parse(body)
 
-    if (body.lastname == null) {
-
-        return NextResponse.json(
-            {
-                message: "Lastname is required"
-            },
-            {
-                status: 422
-            }
-        );
-    }
-
-    if (body.password == null) {
-
-        return NextResponse.json(
-            {
-                message: "Password is required"
-            },
-            {
-                status: 422
-            }
-        );
-    }
-
-    const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.user.findFirst({
         where: {
             email: body.email
         }
-    });
+     });
 
-    if (existingUser != null) {
+      if (existingUser != null) {
 
         return NextResponse.json(
             {
@@ -142,11 +105,11 @@ export async function POST(request: NextRequest) {
                 status: 409
             }
         );
-    }
+      }
 
-    const passwordHash = await bcrypt.hash(body.password, 12)
+      const passwordHash = await bcrypt.hash(body.password, 12)
 
-    await prisma.user.create({
+      await prisma.user.create({
         data: {
             email: body.email,
             firstname: body.firstname,
@@ -154,16 +117,44 @@ export async function POST(request: NextRequest) {
             password: passwordHash,
             phone: body.phone,
         }
-    });
+     })
     
-    return NextResponse.json(
+     return NextResponse.json(
         {
             message: "User created successfully"
         },
         {
             status: 201
         }
-    );
+     );
+
+    }catch (error) {
+
+        if(error instanceof z.ZodError) {
+
+            //console .log (error.issues[0]?.message ?? "Inavalid input")
+
+            return NextResponse.json(
+                {
+                    message: error.issues[0]?.message ?? "Invalid input"
+                },
+                {
+                    status: 400
+                }
+            );
+        }
+
+        console.log(error)
+
+        return NextResponse.json(
+            {
+                message: "Invalid request body"
+            },
+            {
+                status: 400
+            }
+        )
+    }
 
 }
 
@@ -184,115 +175,147 @@ export async function PUT(request: NextRequest){
         );
     }
 
-    const body = await request.json();
+    try{
 
-    if (requestedUser.id !== id) {
-      
-     //never allow users to update their own role or privilages
+        const body = await request.json();
 
-    const user = await prisma.user.findUnique({
-        where: {
-            id: id || ""
-        }
-    })
+        if (requestedUser.id == id) {
+        
+        //never allow users to update their own role or privilages
 
-    if(user == null){
-        return NextResponse.json(
-            {
-                message: "User not found"
-            },
-            {
-                status: 404
-            }
-        );
-    }
+        UserSelfUpdateRequestSchema.parse(body);
 
-        await prisma.user.update({
+
+        const user = await prisma.user.findUnique({
             where: {
                 id: id || ""
-            },
-            data: {
-                email: body.email || user.email,
-                firstname: body.firstname || user.firstname,
-                lastname: body.lastname || user.lastname,
-                phone: body.phone || user.phone,
-                profileImage : body.profileImage || user.profileImage // should be included in the token
-            }    
-        })
-
-        return NextResponse.json(
-         {
-              message : "User Updated Successfullly"
-         }
-
-        )
-    
-    }else{
-        
-        const havePrivilage = await isPrivilaged(request, "users:edit")
-
-        if (!havePrivilage){
-            return  NextResponse.json(
-              {
-
-                message : "you do not have the privilage to edit this users"
-
-              },
-              {
-                status : 403
-              }
-
-            )
-
-        }
-        
-        const user = await prisma.user.findUnique({
-            where : {
-                id : id||"0000"
             }
-
         })
 
-        if (user == null){
+        if(user == null){
             return NextResponse.json(
                 {
-                    message : "User not found"
+                    message: "User not found"
                 },
                 {
-                    status : 404
+                    status: 404
+                }
+            );
+        }
+
+            await prisma.user.update({
+                where: {
+                    id: id || ""
+                },
+                data: {
+                    email: body.email || user.email,
+                    firstname: body.firstname || user.firstname,
+                    lastname: body.lastname || user.lastname,
+                    phone: body.phone || user.phone,
+                    profileImage : body.profileImage || user.profileImage // should be included in the token
+                }    
+            })
+
+            return NextResponse.json(
+            {
+                message : "User Updated Successfullly"
+            }
+
+            )
+        
+        }else{
+
+            
+            const havePrivilage = await isPrivilaged(request, "users:edit")
+
+            if (!havePrivilage){
+                return  NextResponse.json(
+                {
+
+                    message : "you do not have the privilage to edit this users"
+
+                },
+                {
+                    status : 403
+                }
+
+                )
+
+            }
+
+            UserUpdatedByAdminRequestSchema.parse(body);
+            
+            const user = await prisma.user.findUnique({
+                where : {
+                    id : id||"0000"
+                }
+
+            })
+
+            if (user == null){
+                return NextResponse.json(
+                    {
+                        message : "User not found"
+                    },
+                    {
+                        status : 404
+                    }
+                )
+            }
+
+            await prisma.user.update({
+                where : {
+                    id : id||"000"
+                },
+                data : {
+                    email : body.email || user.email,
+                    firstname : body.firstname || user.firstname,
+                    lastname : body.lastname  || user.lastname,
+                    phone : body.phone || user.phone,
+                    profileImage : body.profileImage || user.profileImage,
+                    role : body.role || user.role,
+                    status : body.status || user.status,
+                    privilages : body.privilages || user.privilages
+            
+                }
+            })
+
+            return NextResponse.json(
+                {
+                    message : "User updated succesfully"
+                }
+            )
+
+
+
+        }
+    
+
+    
+
+    }catch(error){
+
+        if(error instanceof z.ZodError) {
+            return NextResponse.json(
+                {
+                    message : error.issues[0]?.message ?? "Invalid input"
+                },
+                {
+                    status : 400
                 }
             )
         }
 
-        await prisma.user.update({
-            where : {
-                id : id||"000"
-            },
-            data : {
-                email : body.email || user.email,
-                firstname : body.firstname || user.firstname,
-                lastname : body.lastname  || user.lastname,
-                phone : body.phone || user.phone,
-                profileImage : body.profileImage || user.profileImage,
-                role : body.role || user.role,
-                status : body.status || user.status,
-                privilages : body.privilages || user.privilages
-        
-            }
-        })
-
         return NextResponse.json(
             {
-                message : "User updated succesfully"
+                message : "Server error "
+            },
+            {
+                status : 500
             }
         )
-
-
-
-
-
-
-
-
     }
-}
+
+
+
+}    
