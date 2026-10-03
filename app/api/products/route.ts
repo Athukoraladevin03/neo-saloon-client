@@ -1,22 +1,22 @@
+import { isPrivilaged } from "@/utils/authentication";
 import { NextRequest, NextResponse } from "next/server";
-import * as jose from "jose";
-import { userInfo } from "os";
+
 
 export async function GET(request : NextRequest) {
 
-    const loginToken = request.cookies.get("Login-token")?.value
     
-    const secretText = process.env.JOSE_SECRET
 
-    const secret = new TextEncoder().encode(secretText);
+}
 
-    const user = await jose.jwtVerify(
-        loginToken||"",
-        secret
-    )
+export async function POST(request : NextRequest){
 
-    console.log(user)
+    const hasPrivilage = await isPrivilaged(request,"products:add")
 
-    console.log ("GET request recieved at /api/products");
+    if(hasPrivilage){
 
+        const body = await request.json()
+        
+    }else{
+        return NextResponse.json({message : "You do not have the required privilage to add a product"}, {status : 403})
+    }
 }
