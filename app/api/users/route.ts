@@ -3,6 +3,7 @@ import { UserRegistrationRequestSchema } from "@/types/dto/UserRegistrationReque
 import { UserSelfUpdateRequestSchema } from "@/types/dto/UserSelfUpdateRequest";
 import { UserUpdatedByAdminRequestSchema } from "@/types/dto/UserUpdatedByAdminRequest";
 import { getUser, isPrivilaged } from "@/utils/authentication";
+import getPaginationInfo from "@/utils/pageInfoRetrieval";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
@@ -22,18 +23,13 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    const pageNumberInstring = request.nextUrl.searchParams.get("pageNumber") || "1";
-    
-    const pageSizeInstring = request.nextUrl.searchParams.get("pageSize") || "10";
-
-    const pageNumber = parseInt(pageNumberInstring);
-    const pageSize = parseInt(pageSizeInstring);
+    const params = getPaginationInfo(request)
 
     const userCount = await prisma.user.count()
 
-    const totalPages = Math.ceil(userCount / pageSize)
+    const totalPages = Math.ceil(userCount / params.pageSize)
 
-    if(pageNumber > totalPages){
+    if(params.pageNumber > totalPages){
         return NextResponse.json(
             {
                 message: "Page number exceeds total pages",
@@ -46,8 +42,8 @@ export async function GET(request: NextRequest) {
     }
 
     const users = await prisma.user.findMany({
-        skip: (pageNumber - 1) * pageSize,
-        take: pageSize,
+        skip: (params.pageNumber - 1) * params.pageSize,
+        take: params.pageSize,
         select: {
             id: true,
             email: true,
@@ -66,10 +62,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
         {
             message: "Users fetched successfully",
-            users: users,
+            data : users,
             pagination : {
-                pageNumber : pageNumber,
-                pageSize : pageSize,
+                pageNumber : params.pageNumber,
+                pageSize : params.pageSize,
                 totalPages : totalPages,
                 totalCount : userCount
             }
