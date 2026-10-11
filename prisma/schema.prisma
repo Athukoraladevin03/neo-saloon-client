@@ -20,7 +20,7 @@ model user {
   lastname String
   password String
   role String @default("CUSTOMER")
-  status String @default("ACTIVE") //ACTIVE, BANNED, SUSPENDED
+  status String @default("ACTIVE") //ACTIVE, INACTIVE , SUSPENDED
   createdAt DateTime @default(now())
   lastLogin DateTime?
   privilages String[] @default([]) //["users:add" , "users:edit" , "users.read"]
@@ -31,7 +31,7 @@ model user {
 
 enum ProductStatus {
   ACTIVE
-  BANNED
+  INACTIVE
   DELETED
 }
 
@@ -43,7 +43,7 @@ model product {
   altNames String[] @default([])
   description String
   stock Int @default(0)
-  // status String @default("ACTIVE") //ACTIVE, BANNED, DISCONTNUED
+  // status String @default("ACTIVE") //ACTIVE, INACTIVE , DISCONTNUED
   status ProductStatus @default(ACTIVE)
   price Float
   compareAt Float?
